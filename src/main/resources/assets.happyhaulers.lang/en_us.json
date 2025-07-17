@@ -1,0 +1,13 @@
+{
+  "itemGroup.happyhaulers": "Happy Haulers Mod Tab",
+  "block.happyhaulers.example_block": "Example Block",
+  "item.happyhaulers.example_item": "Example Item",
+
+  "happyhaulers.configuration.title": "Happy Haulers Mod Configs",
+  "happyhaulers.configuration.section.happyhaulers.common.toml": "Happy Haulers Mod Configs",
+  "happyhaulers.configuration.section.happyhaulers.common.toml.title": "Happy Haulers Mod Configs",
+  "happyhaulers.configuration.items": "Item List",
+  "happyhaulers.configuration.logDirtBlock": "Log Dirt Block",
+  "happyhaulers.configuration.magicNumberIntroduction": "Magic Number Text",
+  "happyhaulers.configuration.magicNumber": "Magic Number"
+}
