@@ -7,7 +7,7 @@ import org.spongepowered.asm.mixin.Unique;
 
 @Mixin(HappyGhastRenderState.class)
 public class HappyGhastRenderStateMixin implements IEnhancedHappyGhastMixin {
-    @Unique private String ehg$spawnBiome = "";
+    @Unique private String ehg$spawnBiome = "minecraft:plains";
     @Unique private boolean ehg$hasRpgName = false;
     @Unique private boolean ehg$isBeingRidden = false;
 
@@ -18,7 +18,7 @@ public class HappyGhastRenderStateMixin implements IEnhancedHappyGhastMixin {
 
     @Override
     public void ehg$setSpawnBiome(String biome) {
-        ehg$spawnBiome = biome != null ? biome : "";
+        ehg$spawnBiome = biome != null ? biome : "minecraft:plains";
     }
 
     @Override

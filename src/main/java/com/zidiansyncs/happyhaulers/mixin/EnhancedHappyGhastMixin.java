@@ -16,15 +16,41 @@ public class EnhancedHappyGhastMixin implements IEnhancedHappyGhastMixin {
     @Unique private String ehg$spawnBiome = "minecraft:plains";
     @Unique private boolean ehg$hasRpgName = false;
     @Unique private boolean ehg$isBeingRidden = false;
+    @Unique private boolean ehg$biomeDetected = false;
 
     @Inject(method = "<init>", at = @At("TAIL"))
     private void ehg$testInit(EntityType<? extends HappyGhast> entityType, Level level, CallbackInfo ci) {
-        // Enhanced Happy Ghast initialization - no logging needed
+        // Initialize with plains as default, will be updated in tick
+        ehg$spawnBiome = "minecraft:plains";
+        ehg$biomeDetected = false;
     }
 
     @Inject(method = "tick", at = @At("HEAD"))
     private void ehg$testTick(CallbackInfo ci) {
         HappyGhast ghast = (HappyGhast)(Object)this;
+
+        // Simple approach: Detect biome on both client and server
+        if (ghast.tickCount < 20 && !ehg$biomeDetected) {
+            net.minecraft.core.BlockPos spawnPos = ghast.blockPosition();
+
+            // Try server-side detection first (most reliable)
+            if (!ghast.level().isClientSide && ghast.level() instanceof net.minecraft.server.level.ServerLevel serverLevel) {
+                net.minecraft.resources.ResourceKey<net.minecraft.world.level.biome.Biome> biomeKey =
+                    serverLevel.getBiome(spawnPos).unwrapKey().orElse(null);
+                if (biomeKey != null) {
+                    ehg$spawnBiome = biomeKey.location().toString();
+                    ehg$biomeDetected = true;
+                }
+            }
+            // Fallback: Client-side just uses forest for testing
+            else if (ghast.level().isClientSide) {
+                // For now, just assume forest on client side for testing
+                ehg$spawnBiome = "minecraft:forest";
+                ehg$biomeDetected = true;
+            }
+        }
+
+
 
         // Check for name changes every 20 ticks (1 second)
         if (ghast.tickCount % 20 == 0) {

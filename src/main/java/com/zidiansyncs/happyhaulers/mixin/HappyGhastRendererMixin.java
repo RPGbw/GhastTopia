@@ -76,14 +76,17 @@ public abstract class HappyGhastRendererMixin {
     private void ehg$getTextureLocation(HappyGhastRenderState happyGhastRenderState, CallbackInfoReturnable<ResourceLocation> cir) {
         IEnhancedHappyGhastMixin renderStateMixin = (IEnhancedHappyGhastMixin) happyGhastRenderState;
 
+        // Get biome and RPG data from render state
+        String spawnBiome = renderStateMixin.ehg$getSpawnBiome();
+        boolean hasRpg = renderStateMixin.ehg$hasRpgName();
+
         // Always check for RPG name first (highest priority)
-        if (renderStateMixin.ehg$hasRpgName()) {
+        if (hasRpg) {
             cir.setReturnValue(RPG_TEXTURE);
             return;
         }
 
         // Check if this has biome data for biome variants
-        String spawnBiome = renderStateMixin.ehg$getSpawnBiome();
         if (spawnBiome != null && !spawnBiome.isEmpty() && !spawnBiome.equals("minecraft:plains")) {
             ResourceLocation selectedTexture = ehg$determineTexture(spawnBiome, false);
             cir.setReturnValue(selectedTexture);
@@ -107,8 +110,6 @@ public abstract class HappyGhastRendererMixin {
         renderStateMixin.ehg$setSpawnBiome(biome);
         renderStateMixin.ehg$setHasRpgName(hasRpg);
         renderStateMixin.ehg$setBeingRidden(isRidden);
-
-        // Data transfer complete - no logging needed in production
     }
     
     // Determine which texture to use based on name and biome
