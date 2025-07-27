@@ -1,8 +1,5 @@
 package com.zidiansyncs.happyhaulers.util.mixin;
 
-// Enhanced Happy Ghast Mixin Interface - Defines data sharing contract between mixins
-// This interface allows communication between entity mixin, render state mixin, and renderer mixin
-// Based on FrozenHappyGhast's IHappyGhastMixin pattern for cross-mixin data sharing
 public interface IEnhancedHappyGhastMixin {
 
     // Biome variant data access methods
