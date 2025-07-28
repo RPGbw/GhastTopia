@@ -16,6 +16,7 @@ public class HappyGhastRenderStateMixin implements IEnhancedHappyGhastMixin {
     // Enhanced Happy Ghast render data - copied from entity during extractRenderState
     @Unique private String ehg$spawnBiome = "minecraft:plains";         // Spawn biome for texture selection
     @Unique private boolean ehg$hasRpgName = false;                     // RPG name status for special texture
+    @Unique private boolean ehg$hasExcelsiesName = false;               // Excelsies name status for special texture
     @Unique private boolean ehg$isBeingRidden = false;                  // Rideable status for future features
 
     // Interface implementation methods - provide access to Enhanced Happy Ghast render data
@@ -41,6 +42,17 @@ public class HappyGhastRenderStateMixin implements IEnhancedHappyGhastMixin {
     @Override
     public void ehg$setHasRpgName(boolean hasRpgName) {
         ehg$hasRpgName = hasRpgName;
+    }
+
+    // Excelsies name status access - used by renderer to check for special Excelsies texture
+    @Override
+    public boolean ehg$hasExcelsiesName() {
+        return ehg$hasExcelsiesName;
+    }
+
+    @Override
+    public void ehg$setHasExcelsiesName(boolean hasExcelsiesName) {
+        ehg$hasExcelsiesName = hasExcelsiesName;
     }
 
     // Rideable status access - stored for potential future rendering features

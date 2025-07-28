@@ -12,6 +12,11 @@ public interface IEnhancedHappyGhastMixin {
     boolean ehg$hasRpgName();                      // Returns true if entity is named "rpg" or "RPG"
     void ehg$setHasRpgName(boolean hasRpgName);    // Sets the RPG name status
 
+    // Excelsies name detection methods
+    // Used to track special "excelsies" naming for highest priority texture override
+    boolean ehg$hasExcelsiesName();                // Returns true if entity is named "excelsies"
+    void ehg$setHasExcelsiesName(boolean hasExcelsiesName); // Sets the Excelsies name status
+
     // Rideable state methods
     // Used to track whether a player is currently riding this Enhanced Happy Ghast
     boolean ehg$isBeingRidden();                   // Returns true if player is riding this ghast
