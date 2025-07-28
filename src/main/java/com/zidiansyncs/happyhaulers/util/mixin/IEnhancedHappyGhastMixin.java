@@ -1,5 +1,7 @@
 package com.zidiansyncs.happyhaulers.util.mixin;
 
+import java.util.UUID;
+
 public interface IEnhancedHappyGhastMixin {
 
     // Biome variant data access methods
@@ -21,4 +23,9 @@ public interface IEnhancedHappyGhastMixin {
     // Used to track whether a player is currently riding this Enhanced Happy Ghast
     boolean ehg$isBeingRidden();                   // Returns true if player is riding this ghast
     void ehg$setBeingRidden(boolean beingRidden);  // Sets the rideable status
+
+    // Entity identification methods
+    // Used to identify specific ghast entities for persistent texture variants
+    UUID ehg$getGhastId();                         // Returns the UUID of this ghast entity
+    void ehg$setGhastId(UUID ghastId);             // Sets the UUID of this ghast entity
 }

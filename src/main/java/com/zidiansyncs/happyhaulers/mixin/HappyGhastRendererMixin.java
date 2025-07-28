@@ -2,6 +2,7 @@ package com.zidiansyncs.happyhaulers.mixin;
 
 
 import com.zidiansyncs.happyhaulers.HappyHaulers;
+import com.zidiansyncs.happyhaulers.texture.HappyGhastTextureManager;
 import com.zidiansyncs.happyhaulers.util.mixin.IEnhancedHappyGhastMixin;
 import net.minecraft.client.renderer.entity.HappyGhastRenderer;
 import net.minecraft.client.renderer.entity.state.HappyGhastRenderState;
@@ -17,7 +18,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 // ===== HAPPY GHAST TEXTURE SYSTEM OVERVIEW =====
 //
@@ -84,35 +88,51 @@ public abstract class HappyGhastRendererMixin {
     // Using HashMap for O(1) lookup performance with large numbers of ghasts
     @Unique private static final Map<String, ResourceLocation> BIOME_TEXTURES = new HashMap<>(16, 0.75f);
 
-    static {
-        // Initialize biome texture mappings - all ResourceLocations pre-computed at class load time
-        // Each entry maps a Minecraft biome ID to its corresponding texture file
+    // Track logged missing variants to prevent spam
+    @Unique private static final Set<UUID> ehg$loggedMissingVariants = new HashSet<>();
 
-        // Desert biome texture - File: src/main/resources/assets/happyhaulers/textures/entity/ghast/desert_ghast.png
+    static {
+        // Initialize biome texture mappings - ONLY MAJOR OVERWORLD BIOMES
+        // Removed minor biomes like lush_caves, dripstone_caves, etc. to prevent unwanted variants
+        // Removed ALL Nether/End biomes to prevent dimension-based variants
+
+        // MAJOR BIOME: Desert biome texture
         BIOME_TEXTURES.put("minecraft:desert",
             ResourceLocation.fromNamespaceAndPath(HappyHaulers.MODID, "textures/entity/ghast/desert_ghast.png"));
 
-        // Forest biome texture - File: src/main/resources/assets/happyhaulers/textures/entity/ghast/forest_ghast.png
+        // MAJOR BIOME: Forest biome texture
         BIOME_TEXTURES.put("minecraft:forest",
             ResourceLocation.fromNamespaceAndPath(HappyHaulers.MODID, "textures/entity/ghast/forest_ghast.png"));
 
-        // Ocean biome texture - File: src/main/resources/assets/happyhaulers/textures/entity/ghast/ocean_ghast.png
+        // MAJOR BIOME: Ocean biome texture
         BIOME_TEXTURES.put("minecraft:ocean",
+                ResourceLocation.fromNamespaceAndPath(HappyHaulers.MODID, "textures/entity/ghast/ocean_ghast.png"));
+        BIOME_TEXTURES.put("minecraft:deep_ocean",
+                ResourceLocation.fromNamespaceAndPath(HappyHaulers.MODID, "textures/entity/ghast/ocean_ghast.png"));
+        BIOME_TEXTURES.put("minecraft:cold_ocean",
+                ResourceLocation.fromNamespaceAndPath(HappyHaulers.MODID, "textures/entity/ghast/ocean_ghast.png"));
+        BIOME_TEXTURES.put("minecraft:deep_cold_ocean",
                 ResourceLocation.fromNamespaceAndPath(HappyHaulers.MODID, "textures/entity/ghast/ocean_ghast.png"));
 
         // Warm Ocean biome texture - File: src/main/resources/assets/happyhaulers/textures/entity/ghast/coral_ghast.png
         BIOME_TEXTURES.put("minecraft:warm_ocean",
+                ResourceLocation.fromNamespaceAndPath(HappyHaulers.MODID, "textures/entity/ghast/coral_ghast.png"));
+        BIOME_TEXTURES.put("minecraft:deep_warm_ocean",
+                ResourceLocation.fromNamespaceAndPath(HappyHaulers.MODID, "textures/entity/ghast/coral_ghast.png"));
+        BIOME_TEXTURES.put("minecraft:lukewarm_ocean",
+                ResourceLocation.fromNamespaceAndPath(HappyHaulers.MODID, "textures/entity/ghast/coral_ghast.png"));
+        BIOME_TEXTURES.put("minecraft:deep_lukewarm_ocean",
                 ResourceLocation.fromNamespaceAndPath(HappyHaulers.MODID, "textures/entity/ghast/coral_ghast.png"));
 
         // Taiga biome texture - File: src/main/resources/assets/happyhaulers/textures/entity/ghast/taiga_ghast.png
         BIOME_TEXTURES.put("minecraft:taiga",
             ResourceLocation.fromNamespaceAndPath(HappyHaulers.MODID, "textures/entity/ghast/taiga_ghast.png"));
 
-        // Swamp biome texture - File: src/main/resources/assets/happyhaulers/textures/entity/ghast/swamp_ghast.png
+        // MAJOR BIOME: Swamp biome texture
         BIOME_TEXTURES.put("minecraft:swamp",
             ResourceLocation.fromNamespaceAndPath(HappyHaulers.MODID, "textures/entity/ghast/swamp_ghast.png"));
 
-        // Jungle biome texture - File: src/main/resources/assets/happyhaulers/textures/entity/ghast/jungle_ghast.png
+        // MAJOR BIOME: Jungle biome texture
         BIOME_TEXTURES.put("minecraft:jungle",
             ResourceLocation.fromNamespaceAndPath(HappyHaulers.MODID, "textures/entity/ghast/jungle_ghast.png"));
 
@@ -148,10 +168,16 @@ public abstract class HappyGhastRendererMixin {
         // The End biome texture - File: src/main/resources/assets/happyhaulers/textures/entity/ghast/end_ghast.png
         BIOME_TEXTURES.put("minecraft:the_end",
             ResourceLocation.fromNamespaceAndPath(HappyHaulers.MODID, "textures/entity/ghast/end_ghast.png"));
+
+        // DEFAULT BIOME: Plains texture for unsupported biomes (uses Happy Ghast default texture)
+        // This ensures unsupported biomes have a consistent locked texture to prevent changes
+        // Using the Happy Ghast default texture for plains/unsupported biomes
+        BIOME_TEXTURES.put("minecraft:plains",
+            ResourceLocation.fromNamespaceAndPath(HappyHaulers.MODID, "textures/entity/ghast/happy_ghast.png"));
     }
 
     // Main texture selection method - intercepts vanilla getTextureLocation to provide custom textures
-    // This method implements the priority system: RPG name > Excelsies name > Biome variant > Default texture
+    // This method implements the priority system: World Data > RPG name > Excelsies name > Biome variant > Default texture
     @Inject(method = "getTextureLocation(Lnet/minecraft/client/renderer/entity/state/HappyGhastRenderState;)Lnet/minecraft/resources/ResourceLocation;", at = @At("HEAD"), cancellable = true)
     private void ehg$getTextureLocation(HappyGhastRenderState happyGhastRenderState, CallbackInfoReturnable<ResourceLocation> cir) {
         IEnhancedHappyGhastMixin renderStateMixin = (IEnhancedHappyGhastMixin) happyGhastRenderState;
@@ -160,6 +186,37 @@ public abstract class HappyGhastRendererMixin {
         String spawnBiome = renderStateMixin.ehg$getSpawnBiome();
         boolean hasRpg = renderStateMixin.ehg$hasRpgName();
         boolean hasExcelsies = renderStateMixin.ehg$hasExcelsiesName();
+
+        // CRITICAL: Priority 0: Check world data system for locked texture variants (highest priority)
+        // This ensures persistent texture variants are ALWAYS used when available
+        UUID ghastId = renderStateMixin.ehg$getGhastId();
+        if (ghastId != null) {
+            // Check both client-side and server-side variants for maximum reliability
+            HappyGhastTextureManager.HappyGhastTextureVariant worldVariant =
+                HappyGhastTextureManager.getClientTextureVariants().get(ghastId);
+
+            // If no client variant, try server-side (for single-player)
+            if (worldVariant == null) {
+                worldVariant = HappyGhastTextureManager.getTextureVariant(ghastId);
+            }
+
+            if (worldVariant != null && worldVariant.isLocked) {
+                ResourceLocation lockedTexture = ehg$determineTexture(
+                    worldVariant.spawnBiome, worldVariant.hasRpgName, worldVariant.hasExcelsiesName);
+
+                // Set the locked texture (includes vanilla texture for unsupported biomes)
+                cir.setReturnValue(lockedTexture);
+                return;
+            } else {
+                // Reduced logging to prevent spam - only log once per ghast
+                if (ghastId != null && !ehg$loggedMissingVariants.contains(ghastId)) {
+                    System.out.println("HappyHaulers: RENDERER found NO locked texture variant for ghast " + ghastId +
+                                     " - falling back to entity data (spawnBiome: " + spawnBiome +
+                                     ", hasRpg: " + hasRpg + ", hasExcelsies: " + hasExcelsies + ")");
+                    ehg$loggedMissingVariants.add(ghastId);
+                }
+            }
+        }
 
         // Priority 1: RPG name takes precedence over everything else
         // When entity is named "rpg" or "RPG", always use the special RPG texture
@@ -219,6 +276,9 @@ public abstract class HappyGhastRendererMixin {
         if (entityIsRidden != renderIsRidden) {
             renderStateMixin.ehg$setBeingRidden(entityIsRidden);
         }
+
+        // Always set the ghast ID for world data lookup
+        renderStateMixin.ehg$setGhastId(happyGhast.getUUID());
     }
 
     // TEXTURE SELECTION SYSTEM EXPLANATION:
@@ -247,7 +307,7 @@ public abstract class HappyGhastRendererMixin {
         // PRIORITY 3: Biome-specific texture if available in our mapping
         // O(1) HashMap lookup for optimal performance with many ghasts
         // Looks up the spawn biome (e.g., "minecraft:forest") in BIOME_TEXTURES map
-        // Returns the corresponding texture file (e.g., forest_ghast.png)
+        // Returns the corresponding texture file (e.g., forest_ghast.png or vanilla ghast.png for plains)
         ResourceLocation biomeTexture = BIOME_TEXTURES.get(spawnBiome);
         if (biomeTexture != null) {
             return biomeTexture;

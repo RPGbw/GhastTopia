@@ -1,0 +1,451 @@
+package com.zidiansyncs.happyhaulers.texture;
+
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.animal.HappyGhast;
+
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * Manages persistent texture variants for Happy Ghast entities.
+ * This ensures texture variants are permanently tied to spawn biome/conditions
+ * and never change regardless of dimension travel or world reloads.
+ * 
+ * Based on the CustomLeashManager persistence pattern for consistency.
+ */
+public class HappyGhastTextureManager {
+    
+    // Server-side texture variant data storage
+    private static final Map<UUID, HappyGhastTextureVariant> activeTextureVariants = new ConcurrentHashMap<>();
+
+    // Client-side texture variant data for rendering
+    private static final Map<UUID, HappyGhastTextureVariant> clientTextureVariants = new ConcurrentHashMap<>();
+
+    /**
+     * Represents a persistent texture variant for a Happy Ghast entity
+     */
+    public static class HappyGhastTextureVariant {
+        public final UUID ghastId;
+        public final String spawnBiome;
+        public final boolean hasRpgName;
+        public final boolean hasExcelsiesName;
+        public final long createdTime;
+        public final String levelId;
+        public final boolean isLocked; // Once locked, variant never changes
+
+        // Constructor for new texture variants
+        public HappyGhastTextureVariant(UUID ghastId, String spawnBiome, boolean hasRpgName, 
+                                      boolean hasExcelsiesName, String levelId) {
+            this.ghastId = ghastId;
+            this.spawnBiome = spawnBiome != null ? spawnBiome : "minecraft:plains";
+            this.hasRpgName = hasRpgName;
+            this.hasExcelsiesName = hasExcelsiesName;
+            this.createdTime = System.currentTimeMillis();
+            this.levelId = levelId;
+            this.isLocked = true; // Always lock variants when created
+        }
+
+        // NBT constructor for loading from saved data
+        public HappyGhastTextureVariant(CompoundTag nbt) {
+            // Load UUID from string representation
+            String ghastIdStr = nbt.getString("GhastId").orElse("");
+            this.ghastId = ghastIdStr.isEmpty() ? UUID.randomUUID() : UUID.fromString(ghastIdStr);
+
+            String loadedBiome = nbt.getString("SpawnBiome").orElse("minecraft:plains");
+            this.spawnBiome = loadedBiome.isEmpty() ? "minecraft:plains" : loadedBiome;
+
+            this.hasRpgName = nbt.getBoolean("HasRpgName").orElse(false);
+            this.hasExcelsiesName = nbt.getBoolean("HasExcelsiesName").orElse(false);
+            this.createdTime = nbt.getLong("CreatedTime").orElse(System.currentTimeMillis());
+
+            String levelIdStr = nbt.getString("LevelId").orElse("");
+            this.levelId = levelIdStr.isEmpty() ? "minecraft:overworld" : levelIdStr;
+
+            this.isLocked = nbt.getBoolean("IsLocked").orElse(true);
+        }
+
+        /**
+         * Serialize this texture variant to NBT for saving
+         */
+        public CompoundTag toNBT() {
+            CompoundTag nbt = new CompoundTag();
+            nbt.putString("GhastId", this.ghastId.toString());
+            nbt.putString("SpawnBiome", this.spawnBiome);
+            nbt.putBoolean("HasRpgName", this.hasRpgName);
+            nbt.putBoolean("HasExcelsiesName", this.hasExcelsiesName);
+            nbt.putLong("CreatedTime", this.createdTime);
+            nbt.putString("LevelId", this.levelId);
+            nbt.putBoolean("IsLocked", this.isLocked);
+            return nbt;
+        }
+
+        /**
+         * Get the effective texture variant considering priority:
+         * 1. RPG name (highest priority)
+         * 2. Excelsies name
+         * 3. Spawn biome
+         */
+        public String getEffectiveVariant() {
+            if (hasRpgName) {
+                return "rpg";
+            }
+            if (hasExcelsiesName) {
+                return "excelsies";
+            }
+            return spawnBiome;
+        }
+    }
+    
+    /**
+     * Register a texture variant for a Happy Ghast entity
+     * This locks the texture variant permanently to prevent changes
+     * ONLY REGISTERS OVERWORLD VARIANTS - prevents Nether/End variants
+     */
+    public static void registerTextureVariant(HappyGhast ghast, String spawnBiome,
+                                            boolean hasRpgName, boolean hasExcelsiesName) {
+        UUID ghastId = ghast.getUUID();
+        String levelId = ghast.level().dimension().location().toString();
+
+        // REGISTRATION RULES:
+        // - Overworld: Always allow registration (biome-based or special names)
+        // - Nether: Allow registration for new spawns (default texture) and special names
+        // - End: Allow registration for new spawns (end texture) and special names
+        // - Other dimensions: Only allow special names
+        if (!ghast.level().dimension().equals(net.minecraft.world.level.Level.OVERWORLD) &&
+            !ghast.level().dimension().equals(net.minecraft.world.level.Level.NETHER) &&
+            !ghast.level().dimension().equals(net.minecraft.world.level.Level.END)) {
+            if (hasRpgName || hasExcelsiesName) {
+                // Allow special names in any dimension
+            } else {
+                // Block registration in other custom dimensions for regular ghasts
+                return;
+            }
+        }
+
+        // Check if variant already exists (avoid overwriting locked variants)
+        if (activeTextureVariants.containsKey(ghastId)) {
+            HappyGhastTextureVariant existing = activeTextureVariants.get(ghastId);
+            if (existing.isLocked) {
+                System.out.println("HappyHaulers: Texture variant already locked for ghast " + ghastId +
+                                 " - keeping existing variant: " + existing.getEffectiveVariant());
+                return;
+            }
+        }
+
+        // Create new locked texture variant (Overworld only)
+        HappyGhastTextureVariant variant = new HappyGhastTextureVariant(
+            ghastId, spawnBiome, hasRpgName, hasExcelsiesName, levelId);
+
+        activeTextureVariants.put(ghastId, variant);
+
+        // Sync to client for rendering
+        syncToClient(ghastId, variant);
+
+        // Mark world data as dirty for persistence
+        if (ghast.level() instanceof ServerLevel serverLevel) {
+            HappyGhastTextureWorldData.onTextureVariantCreated(serverLevel);
+        }
+
+        // Texture variant successfully registered and locked
+    }
+
+    /**
+     * Update special name status for an existing texture variant
+     * This only updates name-based variants, biome remains locked
+     */
+    public static void updateSpecialNameStatus(UUID ghastId, boolean hasRpgName, boolean hasExcelsiesName, ServerLevel level) {
+        HappyGhastTextureVariant existing = activeTextureVariants.get(ghastId);
+        if (existing == null) {
+            System.out.println("HappyHaulers: No texture variant found for ghast " + ghastId + " - cannot update names");
+            return;
+        }
+
+        // Only update if name status actually changed
+        if (existing.hasRpgName != hasRpgName || existing.hasExcelsiesName != hasExcelsiesName) {
+            // Create updated variant with new name status but same biome
+            HappyGhastTextureVariant updated = new HappyGhastTextureVariant(
+                ghastId, existing.spawnBiome, hasRpgName, hasExcelsiesName, existing.levelId);
+            
+            activeTextureVariants.put(ghastId, updated);
+            syncToClient(ghastId, updated);
+            
+            // Mark world data as dirty for persistence
+            HappyGhastTextureWorldData.onTextureVariantUpdated(level);
+            
+            System.out.println("HappyHaulers: Updated special names for ghast " + ghastId + 
+                             " - new variant: " + updated.getEffectiveVariant());
+        }
+    }
+    
+    /**
+     * Get texture variant for a Happy Ghast entity
+     */
+    public static HappyGhastTextureVariant getTextureVariant(UUID ghastId) {
+        return activeTextureVariants.get(ghastId);
+    }
+
+    /**
+     * Check if a Happy Ghast has a registered texture variant
+     */
+    public static boolean hasTextureVariant(UUID ghastId) {
+        return activeTextureVariants.containsKey(ghastId);
+    }
+    
+    /**
+     * Remove texture variant for a Happy Ghast entity
+     */
+    public static void removeTextureVariant(UUID ghastId) {
+        HappyGhastTextureVariant removed = activeTextureVariants.remove(ghastId);
+        if (removed != null) {
+            // Remove from client side too
+            clientTextureVariants.remove(ghastId);
+            System.out.println("HappyHaulers: Removed texture variant for ghast: " + ghastId);
+        }
+    }
+
+    /**
+     * Remove texture variant with world data persistence
+     */
+    public static void removeTextureVariant(UUID ghastId, ServerLevel level) {
+        HappyGhastTextureVariant removed = activeTextureVariants.remove(ghastId);
+        if (removed != null) {
+            // Remove from client side too
+            clientTextureVariants.remove(ghastId);
+
+            // Mark world data as dirty for persistence
+            HappyGhastTextureWorldData.onTextureVariantRemoved(level);
+
+            System.out.println("HappyHaulers: Removed texture variant for ghast: " + ghastId);
+        }
+    }
+    
+    /**
+     * Get all active texture variants
+     */
+    public static Collection<HappyGhastTextureVariant> getAllTextureVariants() {
+        return new ArrayList<>(activeTextureVariants.values());
+    }
+    
+    /**
+     * Clean up invalid texture variants (ghasts that no longer exist)
+     * VERY CONSERVATIVE: Only removes variants after 30 minutes of absence
+     */
+    public static void cleanupInvalidVariants(ServerLevel level) {
+        Iterator<Map.Entry<UUID, HappyGhastTextureVariant>> iterator = activeTextureVariants.entrySet().iterator();
+
+        while (iterator.hasNext()) {
+            Map.Entry<UUID, HappyGhastTextureVariant> entry = iterator.next();
+            UUID ghastId = entry.getKey();
+            HappyGhastTextureVariant variant = entry.getValue();
+
+            // CONSERVATIVE: Check if entity still exists across ALL dimensions
+            boolean entityFound = false;
+            try {
+                // Check current level first
+                var entity = level.getEntity(ghastId);
+                if (entity != null && entity.isAlive() && !entity.isRemoved()) {
+                    entityFound = true;
+                } else {
+                    // Check all other dimensions too (entity might have traveled)
+                    for (ServerLevel serverLevel : level.getServer().getAllLevels()) {
+                        var entityInLevel = serverLevel.getEntity(ghastId);
+                        if (entityInLevel != null && entityInLevel.isAlive() && !entityInLevel.isRemoved()) {
+                            entityFound = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!entityFound) {
+                    // Entity not found in any dimension - remove variant after LONG delay
+                    long timeSinceCreation = System.currentTimeMillis() - variant.createdTime;
+                    if (timeSinceCreation > 1800000) { // 30 minutes (very conservative)
+                        System.out.println("HappyHaulers: Ghast " + ghastId + " missing for 30+ minutes across all dimensions - removing texture variant");
+                        iterator.remove();
+                        clientTextureVariants.remove(ghastId);
+                        HappyGhastTextureWorldData.onTextureVariantRemoved(level);
+                    } else {
+                        System.out.println("HappyHaulers: Ghast " + ghastId + " missing but within 30min grace period - preserving texture variant");
+                    }
+                }
+            } catch (Exception e) {
+                System.out.println("HappyHaulers: Error checking ghast " + ghastId + ": " + e.getMessage());
+            }
+        }
+    }
+    
+    /**
+     * Sync texture variant to client for rendering
+     */
+    public static void syncToClient(UUID ghastId, HappyGhastTextureVariant variant) {
+        clientTextureVariants.put(ghastId, variant);
+        // Reduced logging to prevent spam
+    }
+
+    /**
+     * Force immediate synchronization of a specific texture variant to client
+     * Used for critical situations like dimension travel
+     */
+    public static void forceSyncToClient(UUID ghastId) {
+        HappyGhastTextureVariant variant = activeTextureVariants.get(ghastId);
+        if (variant != null && variant.isLocked) {
+            // Force sync to client multiple times to ensure it's received
+            clientTextureVariants.put(ghastId, variant);
+
+            // Also ensure it's in active variants
+            activeTextureVariants.put(ghastId, variant);
+
+            // Reduced logging to prevent spam
+        } else {
+            // Reduced logging to prevent spam
+        }
+    }
+
+    /**
+     * Force synchronization of all texture variants to client
+     * Used when dimensions change or client needs to be refreshed
+     */
+    public static void syncAllToClient() {
+        for (Map.Entry<UUID, HappyGhastTextureVariant> entry : activeTextureVariants.entrySet()) {
+            clientTextureVariants.put(entry.getKey(), entry.getValue());
+        }
+        System.out.println("HappyHaulers: Synced " + activeTextureVariants.size() + " texture variants to client");
+    }
+
+    /**
+     * Force-load texture variant for a specific ghast (aggressive loading for dimension travel)
+     * This ensures texture variants are immediately available when entities are loaded
+     */
+    public static boolean forceLoadTextureVariant(UUID ghastId) {
+        // Check if already loaded
+        if (activeTextureVariants.containsKey(ghastId)) {
+            HappyGhastTextureVariant variant = activeTextureVariants.get(ghastId);
+            // Ensure client sync
+            syncToClient(ghastId, variant);
+            System.out.println("HappyHaulers: Force-loaded existing texture variant for ghast " + ghastId +
+                             " - variant: " + variant.getEffectiveVariant());
+            return true;
+        }
+
+        // Check client-side variants
+        if (clientTextureVariants.containsKey(ghastId)) {
+            HappyGhastTextureVariant variant = clientTextureVariants.get(ghastId);
+            // Copy to server-side if not already there
+            activeTextureVariants.put(ghastId, variant);
+            System.out.println("HappyHaulers: Force-loaded texture variant from client for ghast " + ghastId +
+                             " - variant: " + variant.getEffectiveVariant());
+            return true;
+        }
+
+        return false; // No variant found
+    }
+
+    /**
+     * Get client-side texture variants for rendering
+     */
+    public static Map<UUID, HappyGhastTextureVariant> getClientTextureVariants() {
+        return new HashMap<>(clientTextureVariants);
+    }
+    
+    /**
+     * Clear all texture variant data (for cleanup)
+     */
+    public static void clearAll() {
+        activeTextureVariants.clear();
+        clientTextureVariants.clear();
+    }
+
+    /**
+     * Save all texture variant data to NBT for world persistence
+     */
+    public static CompoundTag saveToNBT() {
+        CompoundTag nbt = new CompoundTag();
+        ListTag variantList = new ListTag();
+
+        System.out.println("HappyHaulers: saveToNBT called - current texture variants: " + activeTextureVariants.size() + " ghasts");
+
+        // Save all texture variants
+        for (HappyGhastTextureVariant variant : activeTextureVariants.values()) {
+            variantList.add(variant.toNBT());
+            System.out.println("HappyHaulers: Saving texture variant - Ghast: " + variant.ghastId + 
+                             ", Variant: " + variant.getEffectiveVariant());
+        }
+
+        nbt.put("TextureVariants", variantList);
+        nbt.putLong("SaveTime", System.currentTimeMillis());
+
+        System.out.println("HappyHaulers: Saved " + variantList.size() + " texture variants to NBT");
+        return nbt;
+    }
+
+    // Track if data has been loaded to prevent multiple loads
+    private static boolean dataLoaded = false;
+
+    /**
+     * Load texture variant data from NBT and restore variants
+     */
+    public static void loadFromNBT(CompoundTag nbt, ServerLevel level) {
+        System.out.println("HappyHaulers: loadFromNBT called for level: " + level.dimension().location());
+
+        if (!nbt.contains("TextureVariants")) {
+            System.out.println("HappyHaulers: No texture variants found in NBT data");
+            return;
+        }
+
+        // Only clear existing data on first load
+        if (!dataLoaded) {
+            activeTextureVariants.clear();
+            clientTextureVariants.clear();
+            System.out.println("HappyHaulers: Cleared existing texture variant data (first load)");
+            dataLoaded = true;
+        } else {
+            System.out.println("HappyHaulers: Data already loaded, adding to existing variants");
+        }
+
+        ListTag variantList = nbt.getList("TextureVariants").orElse(new ListTag());
+        System.out.println("HappyHaulers: Found " + variantList.size() + " texture variants in NBT");
+
+        int loadedCount = 0;
+        int skippedCount = 0;
+
+        for (int i = 0; i < variantList.size(); i++) {
+            CompoundTag variantNBT = variantList.getCompound(i).orElse(new CompoundTag());
+            try {
+                HappyGhastTextureVariant variant = new HappyGhastTextureVariant(variantNBT);
+
+                // Check if this variant already exists (avoid duplicates)
+                if (activeTextureVariants.containsKey(variant.ghastId)) {
+                    System.out.println("HappyHaulers: Skipping duplicate texture variant for ghast: " + variant.ghastId);
+                    skippedCount++;
+                    continue;
+                }
+
+                // Add to active variants
+                activeTextureVariants.put(variant.ghastId, variant);
+
+                // Sync to client
+                syncToClient(variant.ghastId, variant);
+
+                loadedCount++;
+                System.out.println("HappyHaulers: Loaded texture variant - Ghast: " + variant.ghastId + 
+                                 " in " + variant.levelId + ", Variant: " + variant.getEffectiveVariant());
+            } catch (Exception e) {
+                System.out.println("HappyHaulers: Error loading texture variant: " + e.getMessage());
+                e.printStackTrace();
+                skippedCount++;
+            }
+        }
+
+        System.out.println("HappyHaulers: Loaded " + loadedCount + " texture variants from NBT (skipped " + skippedCount + ")");
+    }
+
+    /**
+     * Reset the data loaded flag - used when server stops/starts
+     */
+    public static void resetDataLoadedFlag() {
+        dataLoaded = false;
+        System.out.println("HappyHaulers: Reset texture variant data loaded flag");
+    }
+}
