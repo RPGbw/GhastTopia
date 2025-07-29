@@ -1,8 +1,11 @@
 package com.zidiansyncs.ghasttopia.texture;
 
+import com.zidiansyncs.ghasttopia.network.NetworkHandler;
+
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.animal.HappyGhast;
 
 import java.util.*;
@@ -157,8 +160,8 @@ public class HappyGhastTextureManager {
 
         activeTextureVariants.put(ghastId, variant);
 
-        // Sync to client for rendering
-        syncToClient(ghastId, variant);
+        // Sync to all clients for rendering (SERVER-SIDE)
+        syncToAllClients(ghastId, variant);
 
         // Mark world data as dirty for persistence
         if (ghast.level() instanceof ServerLevel serverLevel) {
@@ -187,7 +190,7 @@ public class HappyGhastTextureManager {
                 existing.isMushroomVariant, existing.mushroomType, existing.levelId);
             
             activeTextureVariants.put(ghastId, updated);
-            syncToClient(ghastId, updated);
+            syncToAllClients(ghastId, updated);
             
             // Mark world data as dirty for persistence
             HappyGhastTextureWorldData.onTextureVariantUpdated(level);
@@ -218,7 +221,7 @@ public class HappyGhastTextureManager {
                 existing.isMushroomVariant, newMushroomType, existing.levelId);
 
             activeTextureVariants.put(ghastId, updated);
-            syncToClient(ghastId, updated);
+            syncToAllClients(ghastId, updated);
 
             // Mark world data as dirty for persistence
             HappyGhastTextureWorldData.onTextureVariantUpdated(level);
@@ -407,41 +410,77 @@ public class HappyGhastTextureManager {
     }
     
     /**
-     * Sync texture variant to client for rendering
+     * Sync texture variant to client for rendering (CLIENT-SIDE ONLY)
+     * This method is called when receiving network packets from server
      */
     public static void syncToClient(UUID ghastId, HappyGhastTextureVariant variant) {
         clientTextureVariants.put(ghastId, variant);
-        // Reduced logging to prevent spam
+        System.out.println("GhastTopia: CLIENT - Received texture sync for ghast " + ghastId +
+                         " -> " + variant.getEffectiveVariant());
     }
 
     /**
-     * Force immediate synchronization of a specific texture variant to client
+     * Sync texture variant to all clients (SERVER-SIDE ONLY)
+     * This method sends network packets to all connected players
+     */
+    public static void syncToAllClients(UUID ghastId, HappyGhastTextureVariant variant) {
+        // Only run on server side
+        if (variant != null) {
+            NetworkHandler.sendTextureSyncToAll(ghastId, variant);
+            System.out.println("GhastTopia: SERVER - Sent texture sync to all clients for ghast " + ghastId +
+                             " -> " + variant.getEffectiveVariant());
+        }
+    }
+
+    /**
+     * Sync texture variant to specific player (SERVER-SIDE ONLY)
+     */
+    public static void syncToPlayer(ServerPlayer player, UUID ghastId, HappyGhastTextureVariant variant) {
+        if (variant != null) {
+            NetworkHandler.sendTextureSyncToPlayer(player, ghastId, variant);
+            System.out.println("GhastTopia: SERVER - Sent texture sync to player " + player.getName().getString() +
+                             " for ghast " + ghastId + " -> " + variant.getEffectiveVariant());
+        }
+    }
+
+    /**
+     * Force immediate synchronization of a specific texture variant to all clients
      * Used for critical situations like dimension travel
      */
-    public static void forceSyncToClient(UUID ghastId) {
+    public static void forceSyncToAllClients(UUID ghastId) {
         HappyGhastTextureVariant variant = activeTextureVariants.get(ghastId);
         if (variant != null && variant.isLocked) {
-            // Force sync to client multiple times to ensure it's received
-            clientTextureVariants.put(ghastId, variant);
-
-            // Also ensure it's in active variants
-            activeTextureVariants.put(ghastId, variant);
-
-            // Reduced logging to prevent spam
+            // Send to all clients via network
+            NetworkHandler.sendTextureSyncToAll(ghastId, variant);
+            System.out.println("GhastTopia: SERVER - Force-synced texture variant to all clients for ghast " + ghastId +
+                             " -> " + variant.getEffectiveVariant());
         } else {
-            // Reduced logging to prevent spam
+            System.out.println("GhastTopia: SERVER - Cannot force-sync ghast " + ghastId +
+                             " - variant not found or not locked");
         }
     }
 
     /**
-     * Force synchronization of all texture variants to client
+     * Force synchronization of all texture variants to all clients
      * Used when dimensions change or client needs to be refreshed
      */
-    public static void syncAllToClient() {
-        for (Map.Entry<UUID, HappyGhastTextureVariant> entry : activeTextureVariants.entrySet()) {
-            clientTextureVariants.put(entry.getKey(), entry.getValue());
+    public static void syncAllToClients() {
+        if (!activeTextureVariants.isEmpty()) {
+            NetworkHandler.sendBulkTextureSyncToAll();
+            System.out.println("GhastTopia: SERVER - Sent bulk texture sync to all clients (" +
+                             activeTextureVariants.size() + " variants)");
         }
-        System.out.println("HappyHaulers: Synced " + activeTextureVariants.size() + " texture variants to client");
+    }
+
+    /**
+     * Sync all texture variants to specific player (used when player joins)
+     */
+    public static void syncAllToPlayer(ServerPlayer player) {
+        if (!activeTextureVariants.isEmpty()) {
+            NetworkHandler.sendBulkTextureSyncToPlayer(player);
+            System.out.println("GhastTopia: SERVER - Sent bulk texture sync to player " +
+                             player.getName().getString() + " (" + activeTextureVariants.size() + " variants)");
+        }
     }
 
     /**

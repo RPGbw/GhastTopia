@@ -4,12 +4,14 @@ import com.zidiansyncs.ghasttopia.GhastTopia;
 import com.zidiansyncs.ghasttopia.texture.HappyGhastTextureManager;
 import com.zidiansyncs.ghasttopia.texture.HappyGhastTextureWorldData;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.animal.HappyGhast;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
 import net.neoforged.neoforge.event.entity.EntityTravelToDimensionEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.level.LevelEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
@@ -79,15 +81,15 @@ public class ServerEventHandlers {
             System.out.println("GhastTopia: " + serverLevel.dimension().location() + " loaded, restoring Happy Ghast texture data");
             HappyGhastTextureWorldData.loadTextureData(serverLevel);
 
-            // Sync all loaded variants to client for rendering
-            HappyGhastTextureManager.syncAllToClient();
+            // Sync all loaded variants to all clients for rendering
+            HappyGhastTextureManager.syncAllToClients();
 
             hasLoadedTextureData = true;
         } else if (serverLevel != null) {
             System.out.println("GhastTopia: " + serverLevel.dimension().location() + " loaded, but texture data already loaded");
 
-            // Still sync to client in case of dimension changes
-            HappyGhastTextureManager.syncAllToClient();
+            // Still sync to all clients in case of dimension changes
+            HappyGhastTextureManager.syncAllToClients();
         }
     }
 
@@ -130,7 +132,7 @@ public class ServerEventHandlers {
 
                 // Ensure client-side sync when entity joins level (critical for dimension travel)
                 if (variant != null && variant.isLocked) {
-                    HappyGhastTextureManager.syncToClient(ghast.getUUID(), variant);
+                    HappyGhastTextureManager.syncToAllClients(ghast.getUUID(), variant);
 
                     System.out.println("HappyHaulers: AGGRESSIVE RESTORE - Happy Ghast " + ghast.getUUID() +
                                      " joined level " + event.getLevel().dimension().location() +
@@ -164,10 +166,10 @@ public class ServerEventHandlers {
 
                 if (variant != null && variant.isLocked) {
                     // CRITICAL: Multiple sync attempts to ensure texture is available in new dimension
-                    HappyGhastTextureManager.syncToClient(ghast.getUUID(), variant);
+                    HappyGhastTextureManager.forceSyncToAllClients(ghast.getUUID());
 
                     // Force sync all variants to ensure client has complete data
-                    HappyGhastTextureManager.syncAllToClient();
+                    HappyGhastTextureManager.syncAllToClients();
 
                     System.out.println("HappyHaulers: DIMENSION TRAVEL - Happy Ghast " + ghast.getUUID() +
                                      " traveling from " + ghast.level().dimension().location() +
@@ -232,6 +234,20 @@ public class ServerEventHandlers {
             for (ServerLevel level : event.getServer().getAllLevels()) {
                 HappyGhastTextureManager.cleanupInvalidVariants(level);
             }
+        }
+    }
+
+    /**
+     * Sync texture data when player joins server
+     * This ensures new players see the correct textures for existing ghasts
+     */
+    @SubscribeEvent
+    public static void onPlayerJoin(PlayerEvent.PlayerLoggedInEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            // Send all texture variants to the joining player
+            HappyGhastTextureManager.syncAllToPlayer(player);
+            System.out.println("GhastTopia: Player " + player.getName().getString() +
+                             " joined - synced texture data");
         }
     }
 }

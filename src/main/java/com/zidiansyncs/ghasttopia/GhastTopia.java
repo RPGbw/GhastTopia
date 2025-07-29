@@ -39,6 +39,7 @@ import net.neoforged.neoforge.registries.DeferredRegister;
 // Import our custom classes
 import com.zidiansyncs.ghasttopia.sound.ModSounds;
 import com.zidiansyncs.ghasttopia.command.MushroomTransformCommand;
+import com.zidiansyncs.ghasttopia.network.NetworkHandler;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 
 // The value here should match an entry in the META-INF/neoforge.mods.toml file
@@ -105,6 +106,9 @@ public class GhastTopia {
         // Note that this is necessary if and only if we want *this* class (ghasttopia) to respond directly to events.
         // Do not add this line if there are no @SubscribeEvent-annotated functions in this class, like onServerStarting() below.
         NeoForge.EVENT_BUS.register(this);
+
+        // Register network handlers for client-server synchronization
+        modEventBus.addListener(NetworkHandler::register);
 
         // Register the item to a creative tab
         modEventBus.addListener(this::addCreative);

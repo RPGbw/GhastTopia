@@ -33,6 +33,7 @@ public class EnhancedHappyGhastMixin implements IEnhancedHappyGhastMixin {
     @Unique private boolean ehg$hasLockedVariant = false;               // True when this ghast has a locked texture variant (prevents biome detection)
     @Unique private boolean ehg$isMushroomVariant = false;              // True if this is a mushroom ghast (red or brown)
     @Unique private String ehg$mushroomType = "red";                    // "red" or "brown" - tracks mushroom variant type
+    @Unique private int ehg$lightningCooldown = 0;                      // Cooldown to prevent multiple transformations
 
     // Initialize data when a new Happy Ghast is created
     // This runs once when the entity is first spawned
@@ -94,7 +95,7 @@ public class EnhancedHappyGhastMixin implements IEnhancedHappyGhastMixin {
             // Periodic client sync to ensure texture variants are available for rendering
             // Reduced frequency (every 10 seconds) to prevent log spam while maintaining reliability
             if (ghast.tickCount % 200 == 0) { // Every 10 seconds
-                HappyGhastTextureManager.forceSyncToClient(ghast.getUUID());
+                HappyGhastTextureManager.forceSyncToAllClients(ghast.getUUID());
             }
             // Skip biome detection but continue to name detection below to allow dynamic name changes
         } else {
@@ -256,8 +257,14 @@ public class EnhancedHappyGhastMixin implements IEnhancedHappyGhastMixin {
         }
 
         // LIGHTNING DETECTION: Check for nearby lightning bolts every tick (server-side only)
+        // Only check if this is a red mushroom ghast and not on cooldown
         if (!ghast.level().isClientSide && ehg$isMushroomVariant && "red".equals(ehg$mushroomType)) {
-            ehg$checkForNearbyLightning(ghast);
+            // Decrease cooldown timer
+            if (ehg$lightningCooldown > 0) {
+                ehg$lightningCooldown--;
+            } else {
+                ehg$checkForNearbyLightning(ghast);
+            }
         }
 
         // OPTIMIZATION: SPECIAL NAME DETECTION - Reduced frequency to every 60 ticks (3 seconds)
@@ -423,30 +430,64 @@ public class EnhancedHappyGhastMixin implements IEnhancedHappyGhastMixin {
     }
 
     // ===== LIGHTNING TRANSFORMATION SYSTEM =====
-    // Custom lightning detection for Happy Ghasts (proximity-based)
-    // Since Happy Ghasts don't have vanilla lightning methods, we detect nearby lightning bolts
+    // Enhanced lightning detection for Happy Ghasts
+    // Detects lightning bolts in a larger area and handles transformation
     @Unique
     private void ehg$checkForNearbyLightning(HappyGhast ghast) {
         if (!(ghast.level() instanceof net.minecraft.server.level.ServerLevel serverLevel)) {
             return;
         }
 
-        // Adjust detection radius based on ghast size (baby ghasts are smaller)
-        double detectionRadius = ghast.isBaby() ? 3.0 : 4.0;
+        // Larger detection radius for better lightning detection
+        double detectionRadius = ghast.isBaby() ? 6.0 : 8.0;
         net.minecraft.world.phys.AABB searchArea = ghast.getBoundingBox().inflate(detectionRadius);
 
         // Find all lightning bolt entities near this ghast
         java.util.List<net.minecraft.world.entity.LightningBolt> nearbyLightning =
             serverLevel.getEntitiesOfClass(net.minecraft.world.entity.LightningBolt.class, searchArea);
 
+        // Also check for recent lightning strikes by looking for fire blocks
+        if (nearbyLightning.isEmpty()) {
+            ehg$checkForLightningFire(ghast, serverLevel, detectionRadius);
+        }
+
         for (net.minecraft.world.entity.LightningBolt lightningBolt : nearbyLightning) {
-            // Check if this lightning bolt is close enough and active
+            // Check if this lightning bolt is close enough
             double distance = ghast.distanceTo(lightningBolt);
-            if (distance <= detectionRadius && lightningBolt.isAlive()) {
+            if (distance <= detectionRadius) {
                 String ghastType = ghast.isBaby() ? "baby" : "adult";
                 System.out.println("GhastTopia: Lightning bolt detected within " + distance + " blocks of " + ghastType + " mushroom ghast!");
                 ehg$handleLightningTransformation(serverLevel, lightningBolt);
                 break; // Only transform once per tick
+            }
+        }
+    }
+
+    // Check for fire blocks that indicate recent lightning strikes
+    @Unique
+    private void ehg$checkForLightningFire(HappyGhast ghast, net.minecraft.server.level.ServerLevel serverLevel, double radius) {
+        net.minecraft.core.BlockPos ghastPos = ghast.blockPosition();
+        int radiusInt = (int) Math.ceil(radius);
+
+        // Check for fire blocks in the area (lightning often creates fire)
+        for (int x = -radiusInt; x <= radiusInt; x++) {
+            for (int y = -radiusInt; y <= radiusInt; y++) {
+                for (int z = -radiusInt; z <= radiusInt; z++) {
+                    net.minecraft.core.BlockPos checkPos = ghastPos.offset(x, y, z);
+                    double distance = Math.sqrt(x*x + y*y + z*z);
+
+                    if (distance <= radius) {
+                        net.minecraft.world.level.block.state.BlockState blockState = serverLevel.getBlockState(checkPos);
+
+                        // Check for fire blocks (common result of lightning)
+                        if (blockState.is(net.minecraft.world.level.block.Blocks.FIRE)) {
+                            String ghastType = ghast.isBaby() ? "baby" : "adult";
+                            System.out.println("GhastTopia: Lightning fire detected within " + distance + " blocks of " + ghastType + " mushroom ghast!");
+                            ehg$handleLightningTransformation(serverLevel, null);
+                            return; // Only transform once
+                        }
+                    }
+                }
             }
         }
     }
@@ -480,6 +521,9 @@ public class EnhancedHappyGhastMixin implements IEnhancedHappyGhastMixin {
         // TRANSFORMATION: Red mushroom ghast → Brown mushroom ghast (PERMANENT)
         String oldType = ehg$mushroomType;
         ehg$mushroomType = "brown";
+
+        // Set cooldown to prevent multiple transformations (5 seconds)
+        ehg$lightningCooldown = 100; // 5 seconds at 20 ticks per second
 
         // PERSISTENCE: Save the transformation immediately to persistent data
         ehg$saveBiomeToPersistentData();
@@ -689,7 +733,7 @@ public class EnhancedHappyGhastMixin implements IEnhancedHappyGhastMixin {
                 ghast.getUUID(), ehg$hasRpgName, ehg$hasExcelsiesName, serverLevel);
 
             // CRITICAL: Force sync after name update
-            HappyGhastTextureManager.forceSyncToClient(ghast.getUUID());
+            HappyGhastTextureManager.forceSyncToAllClients(ghast.getUUID());
 
             System.out.println("GhastTopia: Updated special names for ghast " + ghast.getUUID() +
                              " - RPG: " + ehg$hasRpgName + ", Excelsies: " + ehg$hasExcelsiesName +
