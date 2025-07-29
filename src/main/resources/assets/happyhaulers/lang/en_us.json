@@ -2,8 +2,8 @@
   "itemGroup.happyhaulers": "Happy Haulers",
   "block.happyhaulers.example_block": "Example Block",
   "item.happyhaulers.example_item": "Example Item",
-  "item.happyhaulers.music_disc_cloudstride": "Music Disc",
-  "item.happyhaulers.music_disc_cloudstride.desc": "Cloudstride - A soaring melody that lifts the spirit",
+  "item.happyhaulers.music_disc_cloudstride": "Cloudstride",
+  "item.happyhaulers.music_disc_cloudstride.desc": "Cloudstride - by Rpg",
 
   "happyhaulers.configuration.title": "Happy Haulers Configs",
   "happyhaulers.configuration.section.happyhaulers.common.toml": "Happy Haulers Configs",
