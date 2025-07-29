@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "ghasttopia:item/music_disc_cloudstride"
+  }
+}

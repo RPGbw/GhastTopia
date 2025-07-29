@@ -1,0 +1,15 @@
+{
+  "itemGroup.ghasttopia": "GhastTopia",
+  "block.ghasttopia.example_block": "Example Block",
+  "item.ghasttopia.example_item": "Example Item",
+  "item.ghasttopia.music_disc_cloudstride": "Cloudstride",
+  "item.ghasttopia.music_disc_cloudstride.desc": "Cloudstride - by Rpg",
+
+  "ghasttopia.configuration.title": "GhastTopia Configs",
+  "ghasttopia.configuration.section.ghasttopia.common.toml": "GhastTopia Configs",
+  "ghasttopia.configuration.section.ghasttopia.common.toml.title": "GhastTopia Configs",
+  "ghasttopia.configuration.items": "Item List",
+  "ghasttopia.configuration.logDirtBlock": "Log Dirt Block",
+  "ghasttopia.configuration.magicNumberIntroduction": "Magic Number Text",
+  "ghasttopia.configuration.magicNumber": "Magic Number"
+}
