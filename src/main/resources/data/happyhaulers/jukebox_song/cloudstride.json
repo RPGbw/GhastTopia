@@ -1,0 +1,8 @@
+{
+  "sound_event": "happyhaulers:music_disc_cloudstride",
+  "description": {
+    "translate": "item.happyhaulers.music_disc_cloudstride.desc"
+  },
+  "length_in_seconds": 180.0,
+  "comparator_output": 15
+}

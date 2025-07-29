@@ -31,17 +31,22 @@ public class HappyGhastTextureManager {
         public final String spawnBiome;
         public final boolean hasRpgName;
         public final boolean hasExcelsiesName;
+        public final boolean isMushroomVariant;
+        public final String mushroomType;
         public final long createdTime;
         public final String levelId;
         public final boolean isLocked; // Once locked, variant never changes
 
         // Constructor for new texture variants
-        public HappyGhastTextureVariant(UUID ghastId, String spawnBiome, boolean hasRpgName, 
-                                      boolean hasExcelsiesName, String levelId) {
+        public HappyGhastTextureVariant(UUID ghastId, String spawnBiome, boolean hasRpgName,
+                                      boolean hasExcelsiesName, boolean isMushroomVariant,
+                                      String mushroomType, String levelId) {
             this.ghastId = ghastId;
             this.spawnBiome = spawnBiome != null ? spawnBiome : "minecraft:plains";
             this.hasRpgName = hasRpgName;
             this.hasExcelsiesName = hasExcelsiesName;
+            this.isMushroomVariant = isMushroomVariant;
+            this.mushroomType = mushroomType != null ? mushroomType : "red";
             this.createdTime = System.currentTimeMillis();
             this.levelId = levelId;
             this.isLocked = true; // Always lock variants when created
@@ -58,6 +63,11 @@ public class HappyGhastTextureManager {
 
             this.hasRpgName = nbt.getBoolean("HasRpgName").orElse(false);
             this.hasExcelsiesName = nbt.getBoolean("HasExcelsiesName").orElse(false);
+            this.isMushroomVariant = nbt.getBoolean("IsMushroomVariant").orElse(false);
+
+            String loadedMushroomType = nbt.getString("MushroomType").orElse("red");
+            this.mushroomType = loadedMushroomType.isEmpty() ? "red" : loadedMushroomType;
+
             this.createdTime = nbt.getLong("CreatedTime").orElse(System.currentTimeMillis());
 
             String levelIdStr = nbt.getString("LevelId").orElse("");
@@ -75,6 +85,8 @@ public class HappyGhastTextureManager {
             nbt.putString("SpawnBiome", this.spawnBiome);
             nbt.putBoolean("HasRpgName", this.hasRpgName);
             nbt.putBoolean("HasExcelsiesName", this.hasExcelsiesName);
+            nbt.putBoolean("IsMushroomVariant", this.isMushroomVariant);
+            nbt.putString("MushroomType", this.mushroomType);
             nbt.putLong("CreatedTime", this.createdTime);
             nbt.putString("LevelId", this.levelId);
             nbt.putBoolean("IsLocked", this.isLocked);
@@ -85,7 +97,8 @@ public class HappyGhastTextureManager {
          * Get the effective texture variant considering priority:
          * 1. RPG name (highest priority)
          * 2. Excelsies name
-         * 3. Spawn biome
+         * 3. Brown mushroom variant (lightning-transformed)
+         * 4. Spawn biome
          */
         public String getEffectiveVariant() {
             if (hasRpgName) {
@@ -93,6 +106,9 @@ public class HappyGhastTextureManager {
             }
             if (hasExcelsiesName) {
                 return "excelsies";
+            }
+            if (isMushroomVariant && "brown".equals(mushroomType)) {
+                return "brown_mushroom";
             }
             return spawnBiome;
         }
@@ -104,7 +120,8 @@ public class HappyGhastTextureManager {
      * ONLY REGISTERS OVERWORLD VARIANTS - prevents Nether/End variants
      */
     public static void registerTextureVariant(HappyGhast ghast, String spawnBiome,
-                                            boolean hasRpgName, boolean hasExcelsiesName) {
+                                            boolean hasRpgName, boolean hasExcelsiesName,
+                                            boolean isMushroomVariant, String mushroomType) {
         UUID ghastId = ghast.getUUID();
         String levelId = ghast.level().dimension().location().toString();
 
@@ -136,7 +153,7 @@ public class HappyGhastTextureManager {
 
         // Create new locked texture variant (Overworld only)
         HappyGhastTextureVariant variant = new HappyGhastTextureVariant(
-            ghastId, spawnBiome, hasRpgName, hasExcelsiesName, levelId);
+            ghastId, spawnBiome, hasRpgName, hasExcelsiesName, isMushroomVariant, mushroomType, levelId);
 
         activeTextureVariants.put(ghastId, variant);
 
@@ -164,9 +181,10 @@ public class HappyGhastTextureManager {
 
         // Only update if name status actually changed
         if (existing.hasRpgName != hasRpgName || existing.hasExcelsiesName != hasExcelsiesName) {
-            // Create updated variant with new name status but same biome
+            // Create updated variant with new name status but same biome and mushroom data
             HappyGhastTextureVariant updated = new HappyGhastTextureVariant(
-                ghastId, existing.spawnBiome, hasRpgName, hasExcelsiesName, existing.levelId);
+                ghastId, existing.spawnBiome, hasRpgName, hasExcelsiesName,
+                existing.isMushroomVariant, existing.mushroomType, existing.levelId);
             
             activeTextureVariants.put(ghastId, updated);
             syncToClient(ghastId, updated);
@@ -174,9 +192,121 @@ public class HappyGhastTextureManager {
             // Mark world data as dirty for persistence
             HappyGhastTextureWorldData.onTextureVariantUpdated(level);
             
-            System.out.println("HappyHaulers: Updated special names for ghast " + ghastId + 
+            System.out.println("HappyHaulers: Updated special names for ghast " + ghastId +
                              " - new variant: " + updated.getEffectiveVariant());
         }
+    }
+
+    /**
+     * Update mushroom transformation for an existing texture variant
+     * This preserves all existing data (biome, names) while updating mushroom type
+     * Used when red mushroom ghasts are struck by lightning and transform to brown
+     */
+    public static void updateMushroomTransformation(UUID ghastId, String newMushroomType, ServerLevel level) {
+        HappyGhastTextureVariant existing = activeTextureVariants.get(ghastId);
+        if (existing == null) {
+            System.out.println("HappyHaulers: No texture variant found for ghast " + ghastId + " - cannot update mushroom transformation");
+            return;
+        }
+
+        // Only update if mushroom type actually changed
+        if (!existing.mushroomType.equals(newMushroomType)) {
+            // Create updated variant with new mushroom type but preserve ALL other data
+            // This maintains compatibility with existing texture saving and custom name systems
+            HappyGhastTextureVariant updated = new HappyGhastTextureVariant(
+                ghastId, existing.spawnBiome, existing.hasRpgName, existing.hasExcelsiesName,
+                existing.isMushroomVariant, newMushroomType, existing.levelId);
+
+            activeTextureVariants.put(ghastId, updated);
+            syncToClient(ghastId, updated);
+
+            // Mark world data as dirty for persistence
+            HappyGhastTextureWorldData.onTextureVariantUpdated(level);
+
+            System.out.println("HappyHaulers: Updated mushroom transformation for ghast " + ghastId +
+                             " from " + existing.mushroomType + " to " + newMushroomType +
+                             " - new variant: " + updated.getEffectiveVariant());
+        }
+    }
+
+    /**
+     * Create a special transformation variant for mushroom ghasts
+     * This is used when a mushroom ghast is transformed but doesn't have an existing locked variant
+     * Preserves the existing registration system while handling transformations
+     */
+    public static void createTransformationVariant(HappyGhast ghast, String spawnBiome,
+                                                  boolean hasRpgName, boolean hasExcelsiesName,
+                                                  boolean isMushroomVariant, String mushroomType) {
+        // Use the existing registration system but ensure it's marked as a transformation
+        registerTextureVariant(ghast, spawnBiome, hasRpgName, hasExcelsiesName, isMushroomVariant, mushroomType);
+
+        System.out.println("HappyHaulers: Created transformation variant for ghast " + ghast.getUUID() +
+                         " - mushroom type: " + mushroomType + " (TRANSFORMATION)");
+    }
+
+    /**
+     * Debug method to check if a ghast is a mushroom variant
+     * Useful for testing and debugging mushroom transformations
+     */
+    public static boolean isMushroomVariant(UUID ghastId) {
+        HappyGhastTextureVariant variant = activeTextureVariants.get(ghastId);
+        if (variant != null) {
+            return variant.isMushroomVariant;
+        }
+
+        // Check client-side variants as fallback
+        variant = clientTextureVariants.get(ghastId);
+        return variant != null && variant.isMushroomVariant;
+    }
+
+    /**
+     * Debug method to get mushroom type for a ghast
+     * Returns "red", "brown", or null if not a mushroom variant
+     */
+    public static String getMushroomType(UUID ghastId) {
+        HappyGhastTextureVariant variant = activeTextureVariants.get(ghastId);
+        if (variant != null && variant.isMushroomVariant) {
+            return variant.mushroomType;
+        }
+
+        // Check client-side variants as fallback
+        variant = clientTextureVariants.get(ghastId);
+        if (variant != null && variant.isMushroomVariant) {
+            return variant.mushroomType;
+        }
+
+        return null; // Not a mushroom variant
+    }
+
+    /**
+     * Debug method to list all mushroom variants currently tracked
+     * Useful for testing and debugging the mushroom transformation system
+     */
+    public static void debugListMushroomVariants() {
+        System.out.println("HappyHaulers: === MUSHROOM VARIANT DEBUG ===");
+        int mushroomCount = 0;
+        int redCount = 0;
+        int brownCount = 0;
+
+        for (HappyGhastTextureVariant variant : activeTextureVariants.values()) {
+            if (variant.isMushroomVariant) {
+                mushroomCount++;
+                if ("red".equals(variant.mushroomType)) {
+                    redCount++;
+                } else if ("brown".equals(variant.mushroomType)) {
+                    brownCount++;
+                }
+
+                System.out.println("HappyHaulers: Mushroom Ghast " + variant.ghastId +
+                                 " - Type: " + variant.mushroomType +
+                                 " - Biome: " + variant.spawnBiome +
+                                 " - Effective: " + variant.getEffectiveVariant());
+            }
+        }
+
+        System.out.println("HappyHaulers: Total mushroom variants: " + mushroomCount +
+                         " (Red: " + redCount + ", Brown: " + brownCount + ")");
+        System.out.println("HappyHaulers: === END MUSHROOM DEBUG ===");
     }
     
     /**

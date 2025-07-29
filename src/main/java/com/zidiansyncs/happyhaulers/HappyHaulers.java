@@ -12,10 +12,16 @@ import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.JukeboxSong;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.material.MapColor;
+
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.Mod;
@@ -30,38 +36,54 @@ import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
+// Import our custom classes
+import com.zidiansyncs.happyhaulers.sound.ModSounds;
+import com.zidiansyncs.happyhaulers.command.MushroomTransformCommand;
+import net.neoforged.neoforge.event.RegisterCommandsEvent;
+
 // The value here should match an entry in the META-INF/neoforge.mods.toml file
 @Mod(HappyHaulers.MODID)
 public class HappyHaulers {
     // Define mod id in a common place for everything to reference
     public static final String MODID = "happyhaulers";
-    // Directly reference a slf4j logger
+
+    // Logger for debugging and info messages
     public static final Logger LOGGER = LogUtils.getLogger();
-    // Create a Deferred Register to hold Blocks which will all be registered under the "happyhaulers" namespace
+
+    // Registry for blocks (currently unused but ready for future blocks)
     public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBlocks(MODID);
-    // Create a Deferred Register to hold Items which will all be registered under the "happyhaulers" namespace
+
+    // Registry for items (holds our music disc item)
     public static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(MODID);
-    // Create a Deferred Register to hold CreativeModeTabs which will all be registered under the "happyhaulers" namespace
+
+    // Registry for creative mode tabs (organizes items in creative menu)
     public static final DeferredRegister<CreativeModeTab> CREATIVE_MODE_TABS = DeferredRegister.create(Registries.CREATIVE_MODE_TAB, MODID);
 
-    // Creates a new Block with the id "happyhaulers:example_block", combining the namespace and path
-    public static final DeferredBlock<Block> EXAMPLE_BLOCK = BLOCKS.registerSimpleBlock("example_block", BlockBehaviour.Properties.of().mapColor(MapColor.STONE));
-    // Creates a new BlockItem with the id "happyhaulers:example_block", combining the namespace and path
-    public static final DeferredItem<BlockItem> EXAMPLE_BLOCK_ITEM = ITEMS.registerSimpleBlockItem("example_block", EXAMPLE_BLOCK);
+    // Registry for jukebox songs (defines what music plays when disc is used)
+    public static final DeferredRegister<JukeboxSong> JUKEBOX_SONGS = DeferredRegister.create(Registries.JUKEBOX_SONG, MODID);
 
-    // Creates a new food item with the id "happyhaulers:example_id", nutrition 1 and saturation 2
-    public static final DeferredItem<Item> EXAMPLE_ITEM = ITEMS.registerSimpleItem("example_item", new Item.Properties().food(new FoodProperties.Builder()
-            .alwaysEdible().nutrition(1).saturationModifier(2f).build()));
+    // Resource key that links our music disc item to its jukebox song data
+    public static final ResourceKey<JukeboxSong> CLOUDSTRIDE_JUKEBOX_SONG_KEY = ResourceKey.create(Registries.JUKEBOX_SONG,
+        ResourceLocation.fromNamespaceAndPath(MODID, "cloudstride"));
+
+    // The jukebox song data - defines what happens when the disc plays in a jukebox
+    public static final DeferredHolder<JukeboxSong, JukeboxSong> CLOUDSTRIDE_JUKEBOX_SONG = JUKEBOX_SONGS.register("cloudstride",
+        () -> new JukeboxSong(
+            ModSounds.MUSIC_DISC_CLOUDSTRIDE, // Which sound file to play
+            Component.translatable("item.happyhaulers.music_disc_cloudstride.desc"), // Description text
+            180.0F, // Song length in seconds (3 minutes)
+            15)); // Redstone comparator output strength when playing
+
+    // Our custom music disc item - the physical disc players can hold and use
+    public static final DeferredItem<Item> MUSIC_DISC_CLOUDSTRIDE = ITEMS.register("music_disc_cloudstride", () ->
+        new Item(new Item.Properties()
+            .stacksTo(1) // Only one disc per stack
+            .rarity(net.minecraft.world.item.Rarity.RARE) // Shows as rare (light blue) in tooltips
+            .jukeboxPlayable(CLOUDSTRIDE_JUKEBOX_SONG_KEY) // Links to the song data above
+            .setId(ResourceKey.create(Registries.ITEM, ResourceLocation.fromNamespaceAndPath(MODID, "music_disc_cloudstride")))));
 
     // Creates a creative tab with the id "happyhaulers:happy_haulers_tab" for the example item, that is placed after the combat tab
-    public static final DeferredHolder<CreativeModeTab, CreativeModeTab> HAPPY_HAULERS_TAB = CREATIVE_MODE_TABS.register("happy_haulers_tab", () -> CreativeModeTab.builder()
-            .title(Component.translatable("itemGroup.happyhaulers")) //The language key for the title of your CreativeModeTab
-            .withTabsBefore(CreativeModeTabs.COMBAT)
-            .icon(() -> EXAMPLE_ITEM.get().getDefaultInstance())
-            .displayItems((parameters, output) -> {
-                output.accept(EXAMPLE_ITEM.get()); // Add the example item to the tab. For your own tabs, this method is preferred over the event
-                output.accept(EXAMPLE_BLOCK_ITEM.get()); // Add the example block item to the tab)
-            }).build());
+
 
     // The constructor for the mod class is the first code that is run when your mod is loaded.
     // FML will recognize some parameter types like IEventBus or ModContainer and pass them in automatically.
@@ -72,12 +94,12 @@ public class HappyHaulers {
         // Register the commonSetup method for modloading
         modEventBus.addListener(this::commonSetup);
 
-        // Register the Deferred Register to the mod event bus so blocks get registered
-        BLOCKS.register(modEventBus);
-        // Register the Deferred Register to the mod event bus so items get registered
-        ITEMS.register(modEventBus);
-        // Register the Deferred Register to the mod event bus so tabs get registered
-        CREATIVE_MODE_TABS.register(modEventBus);
+        // Register all our deferred registries to the mod event bus
+        BLOCKS.register(modEventBus); // Register blocks (currently unused)
+        ITEMS.register(modEventBus); // Register items (our music disc)
+        CREATIVE_MODE_TABS.register(modEventBus); // Register creative tabs
+        JUKEBOX_SONGS.register(modEventBus); // Register jukebox songs (our music)
+        ModSounds.register(modEventBus); // Register sound events (our music file)
 
         // Register ourselves for server and other game events we are interested in.
         // Note that this is necessary if and only if we want *this* class (happyhaulers) to respond directly to events.
@@ -106,8 +128,10 @@ public class HappyHaulers {
 
     // Add the example block item to the building blocks tab
     private void addCreative(BuildCreativeModeTabContentsEvent event) {
-        if (event.getTabKey() == CreativeModeTabs.BUILDING_BLOCKS) {
-            event.accept(EXAMPLE_BLOCK_ITEM);
+
+        // Add Cloudstride music disc to the Tools and Utilities tab (where music discs belong)
+        if (event.getTabKey() == CreativeModeTabs.TOOLS_AND_UTILITIES) {
+            event.accept(MUSIC_DISC_CLOUDSTRIDE);
         }
     }
 
@@ -116,5 +140,12 @@ public class HappyHaulers {
     public void onServerStarting(ServerStartingEvent event) {
         // Do something when the server starts
         LOGGER.info("HELLO from server starting");
+    }
+
+    // Register debug commands
+    @SubscribeEvent
+    public void onRegisterCommands(RegisterCommandsEvent event) {
+        MushroomTransformCommand.register(event.getDispatcher());
+        LOGGER.info("Registered Happy Haulers debug commands");
     }
 }

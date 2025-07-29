@@ -28,4 +28,11 @@ public interface IEnhancedHappyGhastMixin {
     // Used to identify specific ghast entities for persistent texture variants
     UUID ehg$getGhastId();                         // Returns the UUID of this ghast entity
     void ehg$setGhastId(UUID ghastId);             // Sets the UUID of this ghast entity
+
+    // Mushroom variant methods
+    // Used to track mushroom ghast variants and lightning transformations
+    boolean ehg$isMushroomVariant();               // Returns true if this is a mushroom ghast (red or brown)
+    void ehg$setMushroomVariant(boolean isMushroomVariant); // Sets the mushroom variant status
+    String ehg$getMushroomType();                  // Returns "red" or "brown" mushroom type
+    void ehg$setMushroomType(String mushroomType); // Sets the mushroom type ("red" or "brown")
 }

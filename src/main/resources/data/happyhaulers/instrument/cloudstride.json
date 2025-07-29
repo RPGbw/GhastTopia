@@ -1,0 +1,8 @@
+{
+  "sound_event": "happyhaulers:music_disc_cloudstride",
+  "use_duration": 3600,
+  "range": 64.0,
+  "description": {
+    "translate": "item.happyhaulers.music_disc_cloudstride.desc"
+  }
+}

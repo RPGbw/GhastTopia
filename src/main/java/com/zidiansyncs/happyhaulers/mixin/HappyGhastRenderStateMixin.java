@@ -21,6 +21,8 @@ public class HappyGhastRenderStateMixin implements IEnhancedHappyGhastMixin {
     @Unique private boolean ehg$hasExcelsiesName = false;               // Excelsies name status for special texture
     @Unique private boolean ehg$isBeingRidden = false;                  // Rideable status for future features
     @Unique private UUID ehg$ghastId = null;                            // Ghast UUID for world data lookup
+    @Unique private boolean ehg$isMushroomVariant = false;              // Mushroom variant status for texture selection
+    @Unique private String ehg$mushroomType = "red";                    // Mushroom type ("red" or "brown") for texture selection
 
     // Interface implementation methods - provide access to Enhanced Happy Ghast render data
     // These methods are called by the renderer to access texture variant information
@@ -78,5 +80,26 @@ public class HappyGhastRenderStateMixin implements IEnhancedHappyGhastMixin {
     @Override
     public void ehg$setGhastId(UUID ghastId) {
         ehg$ghastId = ghastId;
+    }
+
+    // Mushroom variant access - used by renderer to determine mushroom texture variants
+    @Override
+    public boolean ehg$isMushroomVariant() {
+        return ehg$isMushroomVariant;
+    }
+
+    @Override
+    public void ehg$setMushroomVariant(boolean isMushroomVariant) {
+        ehg$isMushroomVariant = isMushroomVariant;
+    }
+
+    @Override
+    public String ehg$getMushroomType() {
+        return ehg$mushroomType;
+    }
+
+    @Override
+    public void ehg$setMushroomType(String mushroomType) {
+        ehg$mushroomType = mushroomType != null ? mushroomType : "red";
     }
 }

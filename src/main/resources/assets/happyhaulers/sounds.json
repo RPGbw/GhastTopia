@@ -1,0 +1,11 @@
+{
+  "music_disc_cloudstride": {
+    "sounds": [
+      {
+        "name": "happyhaulers:music_disc_cloudstride",
+        "stream": true
+      }
+    ],
+    "category": "music"
+  }
+}
