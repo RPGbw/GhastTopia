@@ -171,11 +171,11 @@ public abstract class HappyGhastRendererMixin {
             ResourceLocation.fromNamespaceAndPath(GhastTopia.MODID, "textures/entity/ghast/swamp_ghast.png"));
         BIOME_TEXTURES.put("minecraft:swamp_edge_mountains",
             ResourceLocation.fromNamespaceAndPath(GhastTopia.MODID, "textures/entity/ghast/swamp_ghast.png"));
-        BIOME_TEXTURES.put("minecraft:magrove_swamp",
+        BIOME_TEXTURES.put("minecraft:mangrove_swamp",
             ResourceLocation.fromNamespaceAndPath(GhastTopia.MODID, "textures/entity/ghast/swamp_ghast.png"));
-        BIOME_TEXTURES.put("minecraft:magrove_swamp_hills",
+        BIOME_TEXTURES.put("minecraft:mangrove_swamp_hills",
             ResourceLocation.fromNamespaceAndPath(GhastTopia.MODID, "textures/entity/ghast/swamp_ghast.png"));
-        BIOME_TEXTURES.put("minecraft:magrove_swamp_mountains",
+        BIOME_TEXTURES.put("minecraft:mangrove_swamp_mountains",
             ResourceLocation.fromNamespaceAndPath(GhastTopia.MODID, "textures/entity/ghast/swamp_ghast.png"));
 
 
@@ -192,11 +192,17 @@ public abstract class HappyGhastRendererMixin {
             ResourceLocation.fromNamespaceAndPath(GhastTopia.MODID, "textures/entity/ghast/jungle_ghast.png"));
         BIOME_TEXTURES.put("minecraft:jungle_edge_mountains",
             ResourceLocation.fromNamespaceAndPath(GhastTopia.MODID, "textures/entity/ghast/jungle_ghast.png"));
-        BIOME_TEXTURES.put("minecraft:sparce_jungle",
+        BIOME_TEXTURES.put("minecraft:sparse_jungle",
             ResourceLocation.fromNamespaceAndPath(GhastTopia.MODID, "textures/entity/ghast/jungle_ghast.png"));
-        BIOME_TEXTURES.put("minecraft:sparce_jungle_hills",
+        BIOME_TEXTURES.put("minecraft:sparse_jungle_hills",
             ResourceLocation.fromNamespaceAndPath(GhastTopia.MODID, "textures/entity/ghast/jungle_ghast.png"));
-        BIOME_TEXTURES.put("minecraft:sparce_jungle_mountains",
+        BIOME_TEXTURES.put("minecraft:sparse_jungle_mountains",
+            ResourceLocation.fromNamespaceAndPath(GhastTopia.MODID, "textures/entity/ghast/jungle_ghast.png"));
+        BIOME_TEXTURES.put("minecraft:bamboo_jungle",
+            ResourceLocation.fromNamespaceAndPath(GhastTopia.MODID, "textures/entity/ghast/jungle_ghast.png"));
+        BIOME_TEXTURES.put("minecraft:bamboo_jungle_hills",
+            ResourceLocation.fromNamespaceAndPath(GhastTopia.MODID, "textures/entity/ghast/jungle_ghast.png"));
+        BIOME_TEXTURES.put("minecraft:bamboo_jungle_mountains",
             ResourceLocation.fromNamespaceAndPath(GhastTopia.MODID, "textures/entity/ghast/jungle_ghast.png"));
 
 

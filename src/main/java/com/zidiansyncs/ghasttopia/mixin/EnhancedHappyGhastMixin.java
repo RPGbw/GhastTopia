@@ -188,10 +188,12 @@ public class EnhancedHappyGhastMixin implements IEnhancedHappyGhastMixin {
                         } else {
                             ehg$spawnBiome = "minecraft:plains";
                             ehg$biomeDetected = true;
+                            System.out.println("GhastTopia: SERVER - Unsupported biome detected: " + detectedBiome + " for ghast " + ghast.getUUID() + " - using plains texture");
                         }
                     } else {
                         ehg$spawnBiome = "minecraft:plains";
                         ehg$biomeDetected = true;
+                        System.out.println("GhastTopia: SERVER - No biome key found for ghast " + ghast.getUUID() + " - using plains texture");
                     }
                 }
             } else {
@@ -210,6 +212,7 @@ public class EnhancedHappyGhastMixin implements IEnhancedHappyGhastMixin {
                     else if (ehg$isSupportedBiome(detectedBiome)) {
                         ehg$spawnBiome = detectedBiome;
                         ehg$biomeDetected = true;
+                        System.out.println("GhastTopia: CLIENT - Detected supported biome: " + detectedBiome + " for ghast " + ghast.getUUID());
 
                         // MUSHROOM VARIANT DETECTION: Set mushroom variant flag for all mushroom biomes
                         if (detectedBiome.equals("minecraft:mushroom_fields") ||
@@ -226,10 +229,12 @@ public class EnhancedHappyGhastMixin implements IEnhancedHappyGhastMixin {
                     } else {
                         ehg$spawnBiome = "minecraft:plains";
                         ehg$biomeDetected = true;
+                        System.out.println("GhastTopia: CLIENT - Unsupported biome detected: " + detectedBiome + " for ghast " + ghast.getUUID() + " - using plains texture");
                     }
                 } else {
                     ehg$spawnBiome = "minecraft:plains";
                     ehg$biomeDetected = true;
+                    System.out.println("GhastTopia: CLIENT - No biome key found for ghast " + ghast.getUUID() + " - using plains texture");
                 }
             }
         }
@@ -775,8 +780,8 @@ public class EnhancedHappyGhastMixin implements IEnhancedHappyGhastMixin {
         if (biome.equals("minecraft:swamp") || biome.equals("minecraft:swamp_hills") ||
             biome.equals("minecraft:swamp_mountains") || biome.equals("minecraft:swamp_edge") ||
             biome.equals("minecraft:swamp_edge_hills") || biome.equals("minecraft:swamp_edge_mountains") ||
-            biome.equals("minecraft:magrove_swamp") || biome.equals("minecraft:magrove_swamp_hills") ||
-            biome.equals("minecraft:magrove_swamp_mountains")) {
+            biome.equals("minecraft:mangrove_swamp") || biome.equals("minecraft:mangrove_swamp_hills") ||
+            biome.equals("minecraft:mangrove_swamp_mountains")) {
             return true;
         }
 
@@ -784,8 +789,9 @@ public class EnhancedHappyGhastMixin implements IEnhancedHappyGhastMixin {
         if (biome.equals("minecraft:jungle") || biome.equals("minecraft:jungle_hills") ||
             biome.equals("minecraft:jungle_mountains") || biome.equals("minecraft:jungle_edge") ||
             biome.equals("minecraft:jungle_edge_hills") || biome.equals("minecraft:jungle_edge_mountains") ||
-            biome.equals("minecraft:sparce_jungle") || biome.equals("minecraft:sparce_jungle_hills") ||
-            biome.equals("minecraft:sparce_jungle_mountains")) {
+            biome.equals("minecraft:sparse_jungle") || biome.equals("minecraft:sparse_jungle_hills") ||
+            biome.equals("minecraft:sparse_jungle_mountains") || biome.equals("minecraft:bamboo_jungle") ||
+            biome.equals("minecraft:bamboo_jungle_hills") || biome.equals("minecraft:bamboo_jungle_mountains"))  {
             return true;
         }
 
